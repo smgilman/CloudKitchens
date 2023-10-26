@@ -1,24 +1,31 @@
+'''
+__author__ = Hermann Ndeh
+__author__ = Sharon Gilman
+__author__ = Virginia Jackson
+
+Make sure all dependencies imported below are installed before running this script, you will need
+a google API key with the googlemaps API configured to it. If you are grading this, the key is in
+the 'apiKey.txt' file. Wait for the prompt to input they key after you run the code.
+'''
 import csv
+import googlemaps
 import numpy as np
 import pandas as pd
-from mpl_toolkits.basemap import Basemap
-from math import *
-import random
-import googlemaps
 import matplotlib.pyplot as plt
 from tabulate import tabulate
-from scipy.spatial.distance import euclidean
-from pulp import *
-from scipy.sparse import *
-from networkx import *
+from mpl_toolkits.basemap import Basemap
+from scipy.sparse import csr_matrix, save_npz
+from math import pi, atan2, cos, radians, sin, sqrt
+from pulp import LpProblem, LpVariable, LpMinimize, LpBinary, lpSum
 
 # Constants
 EDGE_OF_MAP_FROM_LOCATION = 2.5
 EARTH_RADIUS_IN_MILES = 3959.0
 
 # Global Variables
+apiKey = input('Enter your google API key: ')
 df = pd.read_csv('SeattleAddressess.csv', delimiter = ',', quotechar = "'")
-googleMapsAPIKey = googlemaps.Client(key = 'AIzaSyB9U3xQQfCIgZqIlySxt_R07cCVOcnygl0')
+googleMapsAPIKey = googlemaps.Client(key = apiKey)
 mapOfSeattle = None
 fileNameForTable = 'Locations.txt'
 fileNameForMatrix = 'Distances.csv'
@@ -43,171 +50,174 @@ coordinatePointW = ()
 coordinatePointE = ()
 coordinatePointS = ()
 
-# Functions
-def createWestPoint(coordinates, distance):
-    """
-    The function "createWestPoint" takes in a set of coordinates and a distance, and returns the
-    longitude of a point that is west of the given coordinates by the specified distance.
-    
-    :param coordinates: The `coordinates` parameter is a tuple containing the latitude and longitude of
-    a location
-    :param distance: The distance parameter represents the distance in miles from the given coordinates
-    to the desired location, in this case, West Point
-    :return: the longitude of the edge of the map, calculated by subtracting the distance divided by
-    69.1 from the given longitude.
-    """
-    latitude, longitude = coordinates
-    return edgeOfMapCoordinates.append(longitude - distance / 69.1)
+class createEdgePoints:
+    def createWestPoint(coordinates, distance):
+        """
+        The function "createWestPoint" takes in a set of coordinates and a distance, and returns the
+        longitude of a point that is west of the given coordinates by the specified distance.
+        
+        :param coordinates: The `coordinates` parameter is a tuple containing the latitude and longitude of
+        a location
+        :param distance: The distance parameter represents the distance in miles from the given coordinates
+        to the desired location, in this case, West Point
+        :return: the longitude of the edge of the map, calculated by subtracting the distance divided by
+        69.1 from the given longitude.
+        """
+        latitude, longitude = coordinates
+        return edgeOfMapCoordinates.append(longitude - distance / 69.1)
 
-def createNorthPoint(coordinates, distance):
-    """
-    The function `createNorthPoint` calculates the latitude of a point that is a certain distance north
-    of a given coordinate.
-    
-    :param coordinates: The coordinates parameter is a tuple containing the latitude and longitude
-    values of a location
-    :param distance: The distance parameter represents the distance in miles from the given coordinates
-    to the desired point
-    :return: the updated list `edgeOfMapCoordinates` after appending the calculated latitude value.
-    """
-    latitude, longitude = coordinates
-    return edgeOfMapCoordinates.append(latitude + (distance / EARTH_RADIUS_IN_MILES * (180 / pi)))
+    def createNorthPoint(coordinates, distance):
+        """
+        The function `createNorthPoint` calculates the latitude of a point that is a certain distance north
+        of a given coordinate.
+        
+        :param coordinates: The coordinates parameter is a tuple containing the latitude and longitude
+        values of a location
+        :param distance: The distance parameter represents the distance in miles from the given coordinates
+        to the desired point
+        :return: the updated list `edgeOfMapCoordinates` after appending the calculated latitude value.
+        """
+        latitude, longitude = coordinates
+        return edgeOfMapCoordinates.append(latitude + (distance / EARTH_RADIUS_IN_MILES * (180 / pi)))
 
-def createSouthPoint(coordinates, distance):
-    """
-    The function `createSouthPoint` calculates the latitude of a point that is a given distance south of
-    a given coordinate.
-    
-    :param coordinates: The coordinates parameter is a tuple containing the latitude and longitude
-    values of a location
-    :param distance: The distance parameter represents the distance in miles from the given coordinates
-    to the southernmost point on the map
-    :return: the updated list `edgeOfMapCoordinates` after appending a new latitude value.
-    """
-    latitude, longitude = coordinates
-    return edgeOfMapCoordinates.append(latitude - (distance / EARTH_RADIUS_IN_MILES * (180 / pi)))
+    def createSouthPoint(coordinates, distance):
+        """
+        The function `createSouthPoint` calculates the latitude of a point that is a given distance south of
+        a given coordinate.
+        
+        :param coordinates: The coordinates parameter is a tuple containing the latitude and longitude
+        values of a location
+        :param distance: The distance parameter represents the distance in miles from the given coordinates
+        to the southernmost point on the map
+        :return: the updated list `edgeOfMapCoordinates` after appending a new latitude value.
+        """
+        latitude, longitude = coordinates
+        return edgeOfMapCoordinates.append(latitude - (distance / EARTH_RADIUS_IN_MILES * (180 / pi)))
 
-def createEastPoint(coordinates, distance):
-    """
-    The function `createEastPoint` takes in a set of coordinates and a distance, and returns the
-    longitude of a point that is `distance` miles east of the given coordinates.
+    def createEastPoint(coordinates, distance):
+        """
+        The function `createEastPoint` takes in a set of coordinates and a distance, and returns the
+        longitude of a point that is `distance` miles east of the given coordinates.
+        
+        :param coordinates: The `coordinates` parameter is a tuple containing the latitude and longitude
+        values of a point on a map
+        :param distance: The distance parameter represents the distance in miles from the given coordinates
+        :return: the updated list `edgeOfMapCoordinates` after appending the calculated longitude value.
+        """
+        latitude, longitude = coordinates
+        return edgeOfMapCoordinates.append(longitude + distance / 69.1)
     
-    :param coordinates: The `coordinates` parameter is a tuple containing the latitude and longitude
-    values of a point on a map
-    :param distance: The distance parameter represents the distance in miles from the given coordinates
-    :return: the updated list `edgeOfMapCoordinates` after appending the calculated longitude value.
-    """
-    latitude, longitude = coordinates
-    return edgeOfMapCoordinates.append(longitude + distance / 69.1)
+class findFurthestPlotPoints:
+    def findEastLocation(coordinates):
+        """
+        The function finds the easternmost location from a list of coordinates.
+        
+        :param coordinates: A list of tuples representing latitude and longitude coordinates
+        :return: the coordinates of the easternmost location.
+        """
+        if not coordinates:
+            return None
+        eastLoc = None
+        maxLongitude = float('-inf')
+        for lat, lon in coordinates:
+            if lon > maxLongitude:
+                maxLongitude = lon
+                eastLoc = (lat, lon)
+        return eastLoc
 
-def findEastLocation(coordinates):
-    """
-    The function finds the easternmost location from a list of coordinates.
-    
-    :param coordinates: A list of tuples representing latitude and longitude coordinates
-    :return: the coordinates of the easternmost location.
-    """
-    if not coordinates:
-        return None
-    eastLoc = None
-    max_longitude = float('-inf')
-    for lat, lon in coordinates:
-        if lon > max_longitude:
-            max_longitude = lon
-            eastLoc = (lat, lon)
-    return eastLoc
+    def findNorthLocation(coordinates):
+        """
+        The function findNorthLocation takes a list of coordinates and returns the coordinate with the
+        highest latitude, representing the northernmost location.
+        
+        :param coordinates: A list of tuples representing coordinates. Each tuple contains a latitude and
+        longitude value
+        :return: the coordinates of the northernmost location from the given list of coordinates.
+        """
+        if not coordinates:
+            return None
+        northLoc = None
+        maxLatitude = float('-inf')
+        for lat, lon in coordinates:
+            if lat > maxLatitude:
+                maxLatitude = lat
+                northLoc = (lat, lon)
+        return northLoc
 
-def findNorthLocation(coordinates):
-    """
-    The function findNorthLocation takes a list of coordinates and returns the coordinate with the
-    highest latitude, representing the northernmost location.
-    
-    :param coordinates: A list of tuples representing coordinates. Each tuple contains a latitude and
-    longitude value
-    :return: the coordinates of the northernmost location from the given list of coordinates.
-    """
-    if not coordinates:
-        return None
-    northLoc = None
-    max_latitude = float('-inf')
-    for lat, lon in coordinates:
-        if lat > max_latitude:
-            max_latitude = lat
-            northLoc = (lat, lon)
-    return northLoc
+    def findSouthLocation(coordinates):
+        """
+        The function `findSouthLocation` takes a list of coordinates and returns the southernmost location.
+        
+        :param coordinates: A list of tuples representing latitude and longitude coordinates. Each tuple
+        contains two elements: the latitude and longitude values
+        :return: the southernmost location from the given coordinates.
+        """
+        if not coordinates:
+            return None
+        southLoc = None
+        minLatitude = float('inf')
+        for lat, lon in coordinates:
+            if lat < minLatitude:
+                minLatitude = lat
+                southLoc = (lat, lon)
+        return southLoc
 
-def findSouthLocation(coordinates):
-    """
-    The function `findSouthLocation` takes a list of coordinates and returns the southernmost location.
-    
-    :param coordinates: A list of tuples representing latitude and longitude coordinates. Each tuple
-    contains two elements: the latitude and longitude values
-    :return: the southernmost location from the given coordinates.
-    """
-    if not coordinates:
-        return None
-    southLoc = None
-    min_latitude = float('inf')
-    for lat, lon in coordinates:
-        if lat < min_latitude:
-            min_latitude = lat
-            southLoc = (lat, lon)
-    return southLoc
+    def findWestLocation(coordinates):
+        """
+        The function `findWestLocation` takes a list of coordinates and returns the coordinate with the
+        smallest longitude, representing the westernmost location.
+        
+        :param coordinates: A list of tuples representing latitude and longitude coordinates. Each tuple
+        contains two elements: the latitude and the longitude
+        :return: the coordinates of the westernmost location.
+        """
+        if not coordinates:
+            return None
+        westLoc = None
+        minLongitude = float('inf')
+        for lat, lon in coordinates:
+            if lon < minLongitude:
+                minLongitude = lon
+                westLoc = (lat, lon)
+        return westLoc
 
-def findWestLocation(coordinates):
-    """
-    The function `findWestLocation` takes a list of coordinates and returns the coordinate with the
-    smallest longitude, representing the westernmost location.
-    
-    :param coordinates: A list of tuples representing latitude and longitude coordinates. Each tuple
-    contains two elements: the latitude and the longitude
-    :return: the coordinates of the westernmost location.
-    """
-    if not coordinates:
-        return None
-    westLoc = None
-    min_longitude = float('inf')
-    for lat, lon in coordinates:
-        if lon < min_longitude:
-            min_longitude = lon
-            westLoc = (lat, lon)
-    return westLoc
+class mapCreation:
+    def createBaseMap(extremeLocations):
+        """
+        The function creates a basemap object for a given set of extreme locations.
+        
+        :param extremeLocations: The `extremeLocations` parameter is a list containing the latitude and
+        longitude values of the extreme points of the map. The list should have the following format:
+        `[min_latitude, max_latitude, min_longitude, max_longitude]`. These values define the boundaries of
+        the map
+        :return: a Basemap object.
+        """
+        cityMap = Basemap(
+            projection = 'merc',
+            llcrnrlat = extremeLocations[0],
+            urcrnrlat = extremeLocations[1],
+            llcrnrlon = extremeLocations[2],
+            urcrnrlon = extremeLocations[3],
+            resolution = 'h'
+        )
+        return cityMap
 
-def createBaseMap(extremeLocations):
-    """
-    The function creates a basemap object using the given extreme locations.
-    
-    :param extremeLocations: The `extremeLocations` parameter is a list containing the latitude and
-    longitude values of the extreme points of the map. The list should have the following format:
-    `[min_latitude, max_latitude, min_longitude, max_longitude]`. These values define the boundaries of
-    the map
-    :return: a Basemap object.
-    """
-    cityMap = Basemap(
-        projection = 'merc',
-        llcrnrlat = extremeLocations[0],
-        urcrnrlat = extremeLocations[1],
-        llcrnrlon = extremeLocations[2],
-        urcrnrlon = extremeLocations[3],
-        resolution = 'h'
-    )
-    return cityMap
-
-def drawAndPlotMap(map_of_seattle):
-    """
-    The function "drawAndPlotMap" takes a map of Seattle and plots the locations of cloud kitchens and
-    random service stations on the map.
-    
-    :param map_of_seattle: The parameter "map_of_seattle" is a map object that represents the map of
-    Seattle. It is used to draw the coastlines, countries, and states on the map
-    """
-    map_of_seattle.drawcoastlines()
-    map_of_seattle.drawcountries()
-    map_of_seattle.drawstates()
-    x, y = map_of_seattle(cloudKitchenLongitudes, cloudKitchenLatitudes)
-    a, b = map_of_seattle(serviceStationLongitudes, serviceStationLatitudes)
-    map_of_seattle.scatter(x, y, marker = '.', color = '#41BE1A', label = 'Cloud Kitchens')
-    map_of_seattle.scatter(a, b, marker = '.', color = 'blue', label = 'Service Locations')
+    def drawAndPlotMap(mapOfSeattle):
+        """
+        The function "drawAndPlotMap" takes a map object of Seattle and plots the locations of cloud
+        kitchens and service stations on the map.
+        
+        :param mapOfSeattle: The parameter `mapOfSeattle` is an instance of the Basemap class, which
+        represents a map of the city of Seattle. It is used to draw the coastlines, countries, and states on
+        the map
+        """
+        mapOfSeattle.drawcoastlines()
+        mapOfSeattle.drawcountries()
+        mapOfSeattle.drawstates()
+        x, y = mapOfSeattle(cloudKitchenLongitudes, cloudKitchenLatitudes)
+        a, b = mapOfSeattle(serviceStationLongitudes, serviceStationLatitudes)
+        mapOfSeattle.scatter(x, y, marker = '.', color = '#41BE1A', label = 'Cloud Kitchens')
+        mapOfSeattle.scatter(a, b, marker = '.', color = 'blue', label = 'Service Locations')
 
 def generateServiceStations():
     """
@@ -340,57 +350,84 @@ def taskII(distanceMatrix):
 
 def taskIII(distanceMatrix, zij):
     """
-    This function takes the solution found in taskII and creates an Origin-Destination table to be exported to a
-    text file in the main() function. 
-
-    :parameter distanceMatrix: The parameter "distanceMatrix" is a 2D array containing the distances between each
-    cloud kitchen and service station.
-    :parameter zij: Part of the solution to taskII. Used in this function to obtain the service locations selected
-    by the model. 
-    :return od_table: Origin-Destination Table with columns "Cloud Kitchen Index", "Service Station Index", and
-    "Distance" 
+    The function `taskIII` takes a distance matrix and a binary decision variable matrix as inputs, and
+    generates an origin-destination table, plots the routes on a map, and creates a frequency graph
+    based on the distances.
+    
+    :param distanceMatrix: The distanceMatrix parameter is a matrix that represents the distances
+    between cloud kitchens and service stations. It is a 2D array where each element represents the
+    distance between a cloud kitchen and a service station
+    :param zij: The parameter "zij" is a binary decision variable matrix that represents the assignment
+    of cloud kitchens to service stations. It is a 2D matrix where each element zij[i][j] is a binary
+    variable that indicates whether cloud kitchen i is assigned to service station j
+    :return: the `odTable`, which is a list of dictionaries containing information about the origin,
+    destination, and distance for each pair of cloud kitchens and service stations where `zij` is equal
+    to 1.
     """
-    od_table = []
-    od_dict = {}
+    odTable = []
+    odDictionary = {}
+    distanceIndex = 0
 
     for i in range(len(cloudKitchens)):
         for j in range(len(serviceStations)):
             if zij[i][j].value() == 1:
-                od_table.append({"Cloud Kitchen Index (Origin)": i + 1, 
-                                 "Service Station Index (Destination)": j + 1, 
-                                 "Distance (miles)": distanceMatrix[i][j]})
-                od_dict["Cloud Kitchen Index (Origin)"] = i + 1
-                od_dict["Service Station Index (Destination)"] = j + 1
-                od_dict["Distance (miles)"] = distanceMatrix[i][j]
+                odTable.append({cloudKitchens[i]['Index']: i + 1, 
+                                 serviceStations[j]['Index']: j + 1,
+                                 f"Distance {distanceIndex}": distanceMatrix[i][j]})
+                odDictionary[cloudKitchens[i]['Index']] = i + 1
+                odDictionary[serviceStations[j]['Index']] = j + 1
+                odDictionary[f"Distance {distanceIndex}"] = distanceMatrix[i][j]
+                distanceIndex += 1
     
-    short_range = (0,3)
-    medium_range = (3,6)
-    long_range = (6,float("inf"))
+    mapOfSeattle = mapCreation.createBaseMap(edgeOfMapCoordinates)
+    mapCreation.drawAndPlotMap(mapOfSeattle)
+    for pair in odTable:
+        origin = None
+        destination = None
+        for i in range(len(pair)):
+            for j in range(len(cloudKitchens)):
+                if cloudKitchens[j]['Index'] == list(pair.keys())[0]:
+                    origin = cloudKitchens[j]['Coordinates']
+            for k in range(len(serviceStations)):
+                if serviceStations[k]['Index'] == list(pair.keys())[1]:
+                    destination = serviceStations[k]['Coordinates']
 
-    short_freq = 0
-    medium_freq = 0
-    long_freq = 0
-
-    for key, value in od_dict.items():
-      if key == "Distance (miles)":
-        if short_range[0] <= value < short_range[1]:
-          short_freq += 1
-        if medium_range[0] <= value < medium_range[1]:
-            medium_freq += 1
-        if long_range[0] <= value < long_range[1]:
-            long_freq += 1
+        if origin is not None and destination is not None:
+            xOrigin, yOrigin = mapOfSeattle(origin[1], origin[0])
+            xDestination, yDestination = mapOfSeattle(destination[1], destination[0])
+            mapOfSeattle.plot([xOrigin, xDestination], [yOrigin, yDestination], color='blue', linewidth=1)
+    plt.savefig('Solution.jpg', format='jpeg', dpi=300)
+    plt.close()
     
-    dist_ranges = ["< 3 miles", "3-6 miles", "> 6 miles"]
-    freq_values = [short_freq, medium_freq, long_freq]
+    shortRange = (0,3)
+    mediumRange = (3,6)
+    longRange = (6,float("inf"))
 
-    plt.bar(dist_ranges,freq_values)
+    shortFrequency = 0
+    mediumFrequency = 0
+    longFrequency = 0
+    distanceIndex = 0
+
+    for key, value in odDictionary.items():
+      if key == f"Distance {distanceIndex}":
+        if shortRange[0] <= value < shortRange[1]:
+          shortFrequency += 1
+        if mediumRange[0] <= value < mediumRange[1]:
+            mediumFrequency += 1
+        if longRange[0] <= value < longRange[1]:
+            longFrequency += 1
+        distanceIndex += 1
+    
+    distanceRanges = ["< 3 miles", "3-6 miles", "> 6 miles"]
+    frequencyValues = [shortFrequency, mediumFrequency, longFrequency]
+
+    plt.bar(distanceRanges,frequencyValues)
     plt.xlabel("Distance Ranges (miles)")
     plt.ylabel("Frequency Values")
     plt.title("Frequency Graph of Origin-Destination Table")
-    plt.savefig('Frequency.jpg', format='jpeg', dpi=300)
+    plt.savefig('Frequency.jpg', format = 'jpeg', dpi = 300)
 
-    return od_table
-    # plt.show()
+    return odTable
 
 def main():
     """
@@ -408,18 +445,18 @@ def main():
     addressesToLocations()
     getAddresses()
     getZipCodes()
-    coordinatePointS = findSouthLocation(cloudKitchenCoordinates)
-    createSouthPoint(coordinatePointS, EDGE_OF_MAP_FROM_LOCATION)
-    coordinatePointN = findNorthLocation(cloudKitchenCoordinates)
-    createNorthPoint(coordinatePointN, EDGE_OF_MAP_FROM_LOCATION)
-    coordinatePointE = findEastLocation(cloudKitchenCoordinates)
-    createEastPoint(coordinatePointE, EDGE_OF_MAP_FROM_LOCATION)
-    coordinatePointW = findWestLocation(cloudKitchenCoordinates)
-    createWestPoint(coordinatePointW, EDGE_OF_MAP_FROM_LOCATION)
+    coordinatePointS = findFurthestPlotPoints.findSouthLocation(cloudKitchenCoordinates)
+    createEdgePoints.createSouthPoint(coordinatePointS, EDGE_OF_MAP_FROM_LOCATION)
+    coordinatePointN = findFurthestPlotPoints.findNorthLocation(cloudKitchenCoordinates)
+    createEdgePoints.createNorthPoint(coordinatePointN, EDGE_OF_MAP_FROM_LOCATION)
+    coordinatePointE = findFurthestPlotPoints.findEastLocation(cloudKitchenCoordinates)
+    createEdgePoints.createEastPoint(coordinatePointE, EDGE_OF_MAP_FROM_LOCATION)
+    coordinatePointW = findFurthestPlotPoints.findWestLocation(cloudKitchenCoordinates)
+    createEdgePoints.createWestPoint(coordinatePointW, EDGE_OF_MAP_FROM_LOCATION)
     generateServiceStations()
     serviceStationLatitudes = [coord[0] for coord in serviceStationCoordinates]
     serviceStationLongitudes = [coord[1] for coord in serviceStationCoordinates]
-    drawAndPlotMap(createBaseMap(edgeOfMapCoordinates))
+    mapCreation.drawAndPlotMap(mapCreation.createBaseMap(edgeOfMapCoordinates))
 
     for i in range(len(cloudKitchenAddresses)):
         cloudKitchens.append({
@@ -453,12 +490,10 @@ def main():
         writer = csv.writer(file)
         writer.writerows(distance(cloudKitchens, serviceStations))
 
-    # print(tabulate(kitchenAndStationData, headers, tablefmt = 'simple'))
-    # print(distance(cloudKitchens, serviceStations))
     plt.title('Cloud Kitchen Locations')
     plt.legend(loc = 'best')
     plt.savefig('Locations.jpg', format = 'jpeg', dpi = 300)
-    plt.show()
+    # plt.close()
 
     distanceMatrix = distance(cloudKitchens, serviceStations)
     zij, solutionMatrix = taskII(distanceMatrix)
@@ -466,7 +501,7 @@ def main():
 
     od_table = taskIII(distanceMatrix, zij)
     with open(fileNameForOD, 'w') as file:
-        od_table = tabulate(od_table, headers="keys", tablefmt="simple")   
+        od_table = tabulate(od_table, headers = "keys", tablefmt = "simple")   
         file.write(od_table)
 
 if __name__ == '__main__':
